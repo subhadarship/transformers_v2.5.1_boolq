@@ -18,6 +18,8 @@
 import logging
 import os
 
+import json
+
 from ...file_utils import is_tf_available
 from .utils import DataProcessor, InputExample, InputFeatures
 
@@ -77,7 +79,6 @@ def glue_convert_examples_to_features(
             logger.info("Using output mode %s for task %s" % (output_mode, task))
 
     label_map = {label: i for i, label in enumerate(label_list)}
-
     features = []
     for (ex_index, example) in enumerate(examples):
         len_examples = 0
@@ -516,6 +517,51 @@ class WnliProcessor(DataProcessor):
         return examples
 
 
+class BoolqProcessor(DataProcessor):
+    """Processor for the BoolQ data set (GLUE version)."""
+
+    def get_example_from_tensor_dict(self, tensor_dict):
+        """See base class."""
+        return InputExample(
+            tensor_dict["idx"].numpy(),
+            tensor_dict["question"].numpy().decode("utf-8"),
+            tensor_dict["passage"].numpy().decode("utf-8"),
+            str(tensor_dict["label"].numpy()),
+        )
+
+    def get_train_examples(self, data_dir):
+        """See base class."""
+        logger.info("LOOKING AT {}".format(os.path.join(data_dir, "train.jsonl")))
+        return self._create_examples(self._read_jsonl(os.path.join(data_dir, "train.jsonl")), "train")
+
+    def get_dev_examples(self, data_dir):
+        """See base class."""
+        return self._create_examples(self._read_jsonl(os.path.join(data_dir, "val.jsonl")), "dev")
+
+    def get_labels(self):
+        """See base class."""
+        return [False, True]
+
+    def _create_examples(self, lines, set_type):
+        """Creates examples for the training and dev sets."""
+        examples = []
+        for (i, line) in enumerate(lines):
+            guid = "%s-%s" % (set_type, line[0]) 
+            text_a = line[1]
+            text_b = line[2]
+            label = line[3]
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+        return examples
+
+    def _read_jsonl(self, input_file):
+        """Reads a tab separated value file."""
+        lines_list = []
+        with open(input_file, "r", encoding="utf-8-sig") as f:
+            for line in f:
+                line_dict = json.loads(line)
+                lines_list.append([line_dict['idx'], line_dict['question'], line_dict['passage'], line_dict['label']])
+        return lines_list
+
 glue_tasks_num_labels = {
     "cola": 2,
     "mnli": 3,
@@ -526,6 +572,7 @@ glue_tasks_num_labels = {
     "qnli": 2,
     "rte": 2,
     "wnli": 2,
+    "boolq": 2,
 }
 
 glue_processors = {
@@ -539,6 +586,7 @@ glue_processors = {
     "qnli": QnliProcessor,
     "rte": RteProcessor,
     "wnli": WnliProcessor,
+    "boolq": BoolqProcessor,
 }
 
 glue_output_modes = {
@@ -552,4 +600,5 @@ glue_output_modes = {
     "qnli": "classification",
     "rte": "classification",
     "wnli": "classification",
+    "boolq": "classification",
 }
